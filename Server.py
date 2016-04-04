@@ -79,8 +79,8 @@ class Server:
         '''Messagelength ist 3Byte, Python braucht fuer unpack aber 4Byte
            daher hier 3Byte aus data + 1Byte extra padding am anfang
         '''
-        paddingByte = '\x00'
-        unpackedMessageLength = struct.unpack('!I', paddingByte+data[6:9])
+        paddingByte = b'\x00'
+        unpackedMessageLength = struct.unpack('!I', paddingByte +data[6:9])
         unpackedMessage = struct.unpack('!I', data[9:13])
         myHello = {
             'contentType' : hex(unpackedHeader[0]),
