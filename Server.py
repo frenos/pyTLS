@@ -1,12 +1,14 @@
+import logging
 import signal
 import socket
 import struct
 import sys
-import logging
 
 
 class Server:
     TLS_HANDSHAKE = 22  # 0x16
+    TYPE_CLIENT_HELLO = 1  #
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
 
@@ -20,7 +22,7 @@ class Server:
     fileHandler.setFormatter(formatter)
     consoleHandler.setFormatter(formatter)
 
-    #logger.addHandler(fileHandler)
+    # logger.addHandler(fileHandler)
     logger.addHandler(consoleHandler)
 
     def __init__(self, host='', port=443):
@@ -32,20 +34,21 @@ class Server:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             Server.logger.debug('socket successfully')
         except socket.error as msg:
-            Server.logger.error('ERROR with socket: %s' % msg)
+            Server.logger.error('socket: %s' % msg)
 
     def start_server(self):
         try:
             self.socket.bind((self.host, self.port))
             Server.logger.debug('bind successfully')
         except socket.error as msg:
-            Server.logger.error('ERROR with bind: %s' % msg)
+            Server.logger.error('bind: %s' % msg)
+            sys.exit(-1)
 
         try:
             self.socket.listen(5)
             Server.logger.debug('listen successfully')
         except socket.error as msg:
-            Server.logger.error('ERROR with listen: %s' % msg)
+            Server.logger.error('listen: %s' % msg)
 
         self.accept_connections()
 
@@ -54,7 +57,7 @@ class Server:
             try:
                 conn, addr = self.socket.accept()
             except socket.error as msg:
-                Server.logger.error('ERROR with accept: %s' %msg)
+                Server.logger.error('accept: %s' % msg)
 
             Server.logger.info('receiving...')
 
@@ -66,54 +69,76 @@ class Server:
         try:
             self.socket.shutdown(socket.SHUT_RDWR)
         except socket.error as msg:
-            Server.logger.error('ERROR with shutdown: %s' %msg)
+            Server.logger.error('shutdown: %s' % msg)
 
         try:
             self.socket.close()
         except socket.error as msg:
-            Server.logger.error('ERROR with close: %s' % msg)
+            Server.logger.error('close: %s' % msg)
+
+    """ DISSECT EVERY MESSAGE HERE """
 
     def dissect_message(self, data):
         Server.logger.debug('Try to dissect raw packet: %s' % data)
-        unpackedHeader = struct.unpack('!BHHB', data [:6])
+
+        unpackedHeader = struct.unpack('!BHHB', data[:6])
         '''Messagelength ist 3Byte, Python braucht fuer unpack aber 4Byte
            daher hier 3Byte aus data + 1Byte extra padding am anfang
         '''
-        paddingByte = b'\x00'
-        unpackedMessageLength = struct.unpack('!I', paddingByte +data[6:9])
-        unpackedMessage = struct.unpack('!HI'+'B'*28 +'BH', data[9:46])
 
-        #concat randomBytes aus der Message
+        if unpackedHeader[0] == self.TLS_HANDSHAKE:
+            self.dissect_handshake_msg(unpackedHeader, data)
+
+    """ DISSECT HANDSAKE HERE """
+
+    def dissect_handshake_msg(self, unpackedHeader, data):
+        Server.logger.debug('Try to dissect handshake')
+
+        if unpackedHeader[3] == self.TYPE_CLIENT_HELLO:
+            self.dissect_client_hello(unpackedHeader, data)
+
+    """ DISSECT CLIENT_HELLO HERE """
+
+    def dissect_client_hello(self, unpackedHeader, data):
+        Server.logger.debug('Try to dissect client_hello')
+
+        paddingByte = b'\x00'
+        unpackedMessageLength = struct.unpack('!I', paddingByte + data[6:9])
+        unpackedMessage = struct.unpack('!HI' + 'B' * 28 + 'BH', data[9:46])
+
+        # concat randomBytes aus der Message
         randomBytes = bytearray()
-        for i in range(2,30):
+        for i in range(2, 30):
             randomBytes.append(unpackedMessage[i])
 
         ciphersuitesLength = int(unpackedMessage[31])
-        #get ciphersuites
-        unpackedCiphers = struct.unpack('!'+'H'*int(ciphersuitesLength/2), data[46:46+ciphersuitesLength])
+        # get ciphersuites
+        unpackedCiphers = struct.unpack('!' + 'H' * int(ciphersuitesLength / 2), data[46:46 + ciphersuitesLength])
         availableCipers = []
         for cipher in unpackedCiphers:
             availableCipers.append(hex(cipher))
 
-        #get compressionLength
+        # get compressionLength
 
         myHello = {
-            'contentType' : hex(unpackedHeader[0]),
-            'tlsVersion' : hex(unpackedHeader[1]),
-            'length' : unpackedHeader[2],
-            'handshakeType' : unpackedHeader[3],
-            'messageLength' : unpackedMessageLength[0],
-            'messageVersion' : hex(unpackedMessage[0]),
-            'randomTimestamp' : unpackedMessage[1],
-            'randomBytes' : str(randomBytes),
-            'SessionIDLength' : unpackedMessage[30],
-            'CiphersuitesLength' : ciphersuitesLength,
-            'Ciphersuites' : availableCipers
+            'contentType': hex(unpackedHeader[0]),
+            'tlsVersion': hex(unpackedHeader[1]),
+            'length': unpackedHeader[2],
+            'handshakeType': unpackedHeader[3],
+            'messageLength': unpackedMessageLength[0],
+            'messageVersion': hex(unpackedMessage[0]),
+            'randomTimestamp': unpackedMessage[1],
+            'randomBytes': str(randomBytes),
+            'SessionIDLength': unpackedMessage[30],
+            'CiphersuitesLength': ciphersuitesLength,
+            'Ciphersuites': availableCipers
         }
 
         Server.logger.debug('dissected ClientHello: %s' % myHello)
-        return myHello
 
+
+########################################################################################################################
+########################################################################################################################
 
 def gracefull_shutdown(sig, dummy):
     server.stop_server()
@@ -122,7 +147,7 @@ def gracefull_shutdown(sig, dummy):
 
 signal.signal(signal.SIGINT, gracefull_shutdown)
 
-server = Server('', 443)
+server = Server('', 1337)
 server.start_server()
 
 server.stop_server()
