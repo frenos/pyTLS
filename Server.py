@@ -74,21 +74,41 @@ class Server:
             Server.logger.error('ERROR with close: %s' % msg)
 
     def dissect_message(self, data):
-        Server.logger.debug('Try to dissect: %s' % data)
+        Server.logger.debug('Try to dissect raw packet: %s' % data)
         unpackedHeader = struct.unpack('!BHHB', data [:6])
         '''Messagelength ist 3Byte, Python braucht fuer unpack aber 4Byte
            daher hier 3Byte aus data + 1Byte extra padding am anfang
         '''
         paddingByte = b'\x00'
         unpackedMessageLength = struct.unpack('!I', paddingByte +data[6:9])
-        unpackedMessage = struct.unpack('!I', data[9:13])
+        unpackedMessage = struct.unpack('!HI'+'B'*28 +'BH', data[9:46])
+
+        #concat randomBytes aus der Message
+        randomBytes = bytearray()
+        for i in range(2,30):
+            randomBytes.append(unpackedMessage[i])
+
+        ciphersuitesLength = int(unpackedMessage[31])
+        #get ciphersuites
+        unpackedCiphers = struct.unpack('!'+'H'*int(ciphersuitesLength/2), data[46:46+ciphersuitesLength])
+        availableCipers = []
+        for cipher in unpackedCiphers:
+            availableCipers.append(hex(cipher))
+
+        #get compressionLength
+
         myHello = {
             'contentType' : hex(unpackedHeader[0]),
             'tlsVersion' : hex(unpackedHeader[1]),
             'length' : unpackedHeader[2],
             'handshakeType' : unpackedHeader[3],
             'messageLength' : unpackedMessageLength[0],
-            'messageVersion' : hex(unpackedMessage[0])
+            'messageVersion' : hex(unpackedMessage[0]),
+            'randomTimestamp' : unpackedMessage[1],
+            'randomBytes' : str(randomBytes),
+            'SessionIDLength' : unpackedMessage[30],
+            'CiphersuitesLength' : ciphersuitesLength,
+            'Ciphersuites' : availableCipers
         }
 
         Server.logger.debug('dissected ClientHello: %s' % myHello)
