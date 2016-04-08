@@ -2,104 +2,8 @@ import struct
 
 
 class Parser:
-    CONTENT_TYPE_OFFSET = 0
-    CONTENT_TYPE_LENGTH = 1
-    CONTENT_TYPE_END = CONTENT_TYPE_OFFSET + CONTENT_TYPE_LENGTH
-
-    MIN_TLS_VERSION_OFFSET = CONTENT_TYPE_END
-    MIN_TLS_VERSION_LENGTH = 2
-    MIN_TLS_VERSION_END = MIN_TLS_VERSION_OFFSET + MIN_TLS_VERSION_LENGTH
-
-    MESSAGE_LENGTH_OFFSET = MIN_TLS_VERSION_END
-    MESSAGE_LENGTH_LENGTH = 2
-    MESSAGE_LENGTH_END = MESSAGE_LENGTH_OFFSET + MESSAGE_LENGTH_LENGTH
-
-    HANDSHAKE_TYPE_OFFSET = MESSAGE_LENGTH_END
-    HANDSHAKE_TYPE_LENGTH = 1
-    HANDSHAKE_TYPE_END = HANDSHAKE_TYPE_OFFSET + HANDSHAKE_TYPE_LENGTH
-
-    CLIENT_HELLO_LENGTH_OFFSET = HANDSHAKE_TYPE_END
-    CLIENT_HELLO_LENGTH_LENGTH = 3
-    CLIENT_HELLO_LENGTH_END = CLIENT_HELLO_LENGTH_OFFSET + CLIENT_HELLO_LENGTH_LENGTH
-
-    MAX_TLS_VERSION_OFFSET = CLIENT_HELLO_LENGTH_END
-    MAX_TLS_VERSION_LENGTH = 2
-    MAX_TLS_VERSION_END = MAX_TLS_VERSION_OFFSET + MAX_TLS_VERSION_LENGTH
-
-    RANDOM_TIME_OFFSET = MAX_TLS_VERSION_END
-    RANDOM_TIME_LENGTH = 4
-    RANDOM_TIME_END = RANDOM_TIME_OFFSET + RANDOM_TIME_LENGTH
-
-    RANDOM_BYTE_OFFSET = RANDOM_TIME_END
-    RANDOM_BYTE_LENGTH = 28
-    RANDOM_BYTE_END = RANDOM_BYTE_OFFSET + RANDOM_BYTE_LENGTH
-
-    SESSION_ID_LENGTH_OFFSET = RANDOM_BYTE_END
-    SESSION_ID_LENGTH_LENGTH = 1
-    SESSION_ID_LENGTH_END = SESSION_ID_LENGTH_OFFSET + SESSION_ID_LENGTH_LENGTH
-
-    SESSION_ID_OFFSET = SESSION_ID_LENGTH_END
-    SESSION_ID_LENGTH = 0
-    SESSION_ID_END = SESSION_ID_OFFSET + SESSION_ID_LENGTH
-
-    CIPHER_SUITES_LENGTH_OFFSET = SESSION_ID_END
-    CIPHER_SUITES_LENGTH_LENGTH = 2
-    CIPHER_SUITES_LENGTH_END = CIPHER_SUITES_LENGTH_OFFSET + CIPHER_SUITES_LENGTH_LENGTH
-
-    def update_offsets(self):
-        self.CONTENT_TYPE_OFFSET = 0
-        self.CONTENT_TYPE_END = self.CONTENT_TYPE_OFFSET + self.CONTENT_TYPE_LENGTH
-
-        self.MIN_TLS_VERSION_OFFSET = self.CONTENT_TYPE_END
-        self.MIN_TLS_VERSION_END = self.MIN_TLS_VERSION_OFFSET + self.MIN_TLS_VERSION_LENGTH
-
-        self.MESSAGE_LENGTH_OFFSET = self.MIN_TLS_VERSION_END
-        self.MESSAGE_LENGTH_END = self.MESSAGE_LENGTH_OFFSET + self.MESSAGE_LENGTH_LENGTH
-
-        self.HANDSHAKE_TYPE_OFFSET = self.MESSAGE_LENGTH_END
-        self.HANDSHAKE_TYPE_END = self.HANDSHAKE_TYPE_OFFSET + self.HANDSHAKE_TYPE_LENGTH
-
-        self.CLIENT_HELLO_LENGTH_OFFSET = self.HANDSHAKE_TYPE_END
-        self.CLIENT_HELLO_LENGTH_END = self.CLIENT_HELLO_LENGTH_OFFSET + self.CLIENT_HELLO_LENGTH_LENGTH
-
-        self.MAX_TLS_VERSION_OFFSET = self.CLIENT_HELLO_LENGTH_END
-        self.MAX_TLS_VERSION_END = self.MAX_TLS_VERSION_OFFSET + self.MAX_TLS_VERSION_LENGTH
-
-        self.RANDOM_TIME_OFFSET = self.MAX_TLS_VERSION_END
-        self.RANDOM_TIME_END = self.RANDOM_TIME_OFFSET + self.RANDOM_TIME_LENGTH
-
-        self.RANDOM_BYTE_OFFSET = self.RANDOM_TIME_END
-        self.RANDOM_BYTE_END = self.RANDOM_BYTE_OFFSET + self.RANDOM_BYTE_LENGTH
-
-        self.SESSION_ID_LENGTH_OFFSET = self.RANDOM_BYTE_END
-        self.SESSION_ID_LENGTH_END = self.SESSION_ID_LENGTH_OFFSET + self.SESSION_ID_LENGTH_LENGTH
-
-        self.SESSION_ID_OFFSET = self.SESSION_ID_LENGTH_END
-        self.SESSION_ID_END = self.SESSION_ID_OFFSET + self.SESSION_ID_LENGTH
-
-        self.CIPHER_SUITES_LENGTH_OFFSET = self.SESSION_ID_END
-        self.CIPHER_SUITES_LENGTH_END = self.CIPHER_SUITES_LENGTH_OFFSET + self.CIPHER_SUITES_LENGTH_LENGTH
-
-    def get_content_type(self, data):
-        return struct.unpack('!B', data[self.CONTENT_TYPE_OFFSET:self.CONTENT_TYPE_END])[0]
-
-    def get_min_tls_version(self, data):
-        return struct.unpack('!H', data[self.MIN_TLS_VERSION_OFFSET:self.MIN_TLS_VERSION_END])[0]
-
-    def get_message_length(self, data):
-        return struct.unpack('!H', data[self.MESSAGE_LENGTH_OFFSET:self.MESSAGE_LENGTH_END])[0]
-
-    def get_handshake_type(self, data):
-        return struct.unpack('!B', data[self.HANDSHAKE_TYPE_OFFSET:self.HANDSHAKE_TYPE_END])[0]
-
-    def get_client_hello_length(self, data):
-        return struct.unpack('!I', b'\x00' + data[self.CLIENT_HELLO_LENGTH_OFFSET:self.CLIENT_HELLO_LENGTH_END])[0]
-
-    def get_max_tls_version(self, data):
-        return struct.unpack('!H', data[self.MAX_TLS_VERSION_OFFSET:self.MAX_TLS_VERSION_END])[0]
-
-    def get_random_time(self, data):
-        return struct.unpack('!I', data[self.RANDOM_TIME_OFFSET:self.RANDOM_TIME_END])[0]
+    HEADER_OFFSET = 0
+    HEADER_LENGTH = 5
 
     def get_random_bytes(self, data):
         unpacked_random_bytes = struct.unpack('!' + (self.RANDOM_BYTE_LENGTH * 'B'),
@@ -116,10 +20,154 @@ class Parser:
         return self.SESSION_ID_LENGTH
 
     def get_session_id(self, data):
-        if self.SESSION_ID_LENGTH != 0:
-            return struct.unpack('!I', data[self.SESSION_ID_LENGTH_OFFSET:self.SESSION_ID_END])[0]
-        else:
+        if self.SESSION_ID_LENGTH == 0:
             return None
+        else:
+            return struct.unpack('!I', data[self.SESSION_ID_LENGTH_OFFSET:self.SESSION_ID_END])[0]
 
     def get_cipher_suites_length(self, data):
-        return struct.unpack('!H', data[self.CIPHER_SUITES_LENGTH_OFFSET:self.CIPHER_SUITES_LENGTH_END])[0]
+        cipher_suites_length = struct.unpack('!H',
+                                             data[self.CIPHER_SUITES_LENGTH_OFFSET:self.CIPHER_SUITES_LENGTH_END])[0]
+
+        if (cipher_suites_length % 2) != 0:
+            cipher_suites_length = 0
+
+        self.CIPHER_SUITES_LENGTH = cipher_suites_length
+        self.update_offsets()
+
+        return cipher_suites_length
+
+    def get_availble_ciphers(self, data):
+
+        available_ciphers = []
+
+        print(str(self.CIPHER_SUITES_LENGTH) + ' AND ' + str(self.CIPHER_SUITES_OFFSET) + ' END ' + str(
+            self.CIPHER_SUITES_END))
+
+        if self.CIPHER_SUITES_LENGTH != 0:
+            unpacked_ciphers = struct.unpack('!' + 'H' * int(self.CIPHER_SUITES_LENGTH / 2),
+                                             data[self.CIPHER_SUITES_OFFSET:self.CIPHER_SUITES_END])
+            for cipher in unpacked_ciphers:
+                available_ciphers.append(hex(cipher))
+
+        return available_ciphers
+
+    def get_parsed_record_layer_header(self, data):
+        unpacked_header = struct.unpack('!BHH', data[self.HEADER_OFFSET:self.HEADER_LENGTH])
+        header = {
+            'content_type': unpacked_header[0],
+            'min_tls_version': unpacked_header[1],
+            'message_length': unpacked_header[2]
+        }
+
+        return header
+
+    def get_ssl_data(self, data):
+        offset = {
+            'handshake_type': 5,
+            'data_length': 6,
+            'max_tls_version': 9,
+            'time': 11,
+            'random_bytes': 15,
+            'session_id_length': 43
+        }
+
+        length = {
+            'handshake_type': 1,
+            'data_length': 3,
+            'max_tls_version': 2,
+            'time': 4,
+            'random_bytes': 28,
+            'session_id_length': 1,
+            'cipher_suites_length': 2,
+            'compression_method_length': 1,
+            'extensions_length': 2
+        }
+
+        ssl_data = {}
+        handshake_type = \
+            struct.unpack('!B', data[offset['handshake_type']:offset['handshake_type'] + length['handshake_type']])[0]
+        ssl_data['handshake_type'] = handshake_type
+
+        data_length = \
+            struct.unpack('!I', b'\x00' + data[offset['data_length']:offset['data_length'] + length['data_length']])[0]
+        ssl_data['data_length'] = data_length
+
+        max_tls_version = \
+            struct.unpack('!H', data[offset['max_tls_version']:offset['max_tls_version'] + length['max_tls_version']])[
+                0]
+        ssl_data['max_tls_version'] = max_tls_version
+
+        time = struct.unpack('!I', data[offset['time']:offset['time'] + length['time']])[0]
+        ssl_data['time'] = time
+
+        random_bytes = struct.unpack('!' + (length['random_bytes'] * 'B'),
+                                     data[offset['random_bytes']:offset['random_bytes'] + length['random_bytes']])[0]
+        ssl_data['random_bytes'] = random_bytes
+
+        length['session_id'] = struct.unpack('!B',
+                                             data[offset['session_id_length']:offset['session_id_length'] + length[
+                                                 'session_id_length']])[0]
+        ssl_data['session_id_length'] = length['session_id']
+
+        if (length['session_id'] < 0) or (length['session_id'] > 255):
+            raise Exception('session_id_length = %i' % int(length['session_id']))
+
+        offset['session_id'] = offset['session_id_length'] + length['session_id_length']
+
+        if length['session_id'] != 0:
+            session_id = \
+                struct.unpack('!' + (length['session_id'] * 'B'),
+                              data[offset['session_id']:offset['session_id'] + length['session_id']])[0]
+            ssl_data['session_id'] = session_id
+
+        print('ssl_data: ' + str(ssl_data))
+
+        offset['cipher_suites_length'] = offset['session_id'] + length['session_id']
+        length['cipher_suites'] = \
+            struct.unpack('!H', data[offset['cipher_suites_length']:offset['cipher_suites_length'] + length[
+                'cipher_suites_length']])[0]
+        ssl_data['cipher_suites_length'] = length['cipher_suites']
+
+        if length['cipher_suites'] < 3:
+            raise Exception('only one cipher_suite')
+
+        if (length['cipher_suites'] % 2) != 0:
+            raise Exception('cipher_suites_length mod 2 != 0')
+
+        offset['cipher_suites'] = offset['cipher_suites_length'] + length['cipher_suites_length']
+
+        # TODO AUSLAGERN
+
+        available_ciphers = []
+        unpacked_ciphers = struct.unpack('!' + 'H' * int(length['cipher_suites'] / 2),
+                                         data[
+                                         offset['cipher_suites']:offset['cipher_suites'] + length['cipher_suites']])
+
+        for cipher in unpacked_ciphers:
+            available_ciphers.append(hex(cipher))
+
+        ssl_data['available_ciphers'] = available_ciphers
+
+        # TODO BIS HIER
+
+        offset['compression_method_length'] = offset['cipher_suites'] + length['cipher_suites']
+        length['compression_method'] = \
+            struct.unpack('!B', data[offset['compression_method_length']:offset['compression_method_length'] +
+                                                                         length['compression_method_length']])[0]
+        ssl_data['compression_method_length'] = length['compression_method_length']
+
+        offset['compression_method'] = offset['compression_method_length'] + length['compression_method_length']
+        compression_method = struct.unpack('!B', data[offset['compression_method']:offset['compression_method'] +
+                                                                                   length['compression_method']])[0]
+        ssl_data['compression_method'] = compression_method
+
+        offset['extensions_length'] = offset['compression_method'] + length['compression_method']
+        length['extensions'] = struct.unpack('!H', data[offset['extensions_length']:offset['extensions_length'] +
+                                                                                    length['extensions_length']])[0]
+
+        ssl_data['extensions_length'] = length['extensions']
+
+        # TODO AUSLAGERN 2 Byte type; 2 Byte length; length Byte Extensiondata
+
+        return ssl_data
