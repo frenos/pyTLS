@@ -5,52 +5,48 @@ class Parser:
     HEADER_OFFSET = 0
     HEADER_LENGTH = 5
 
-    def get_random_bytes(self, data):
-        unpacked_random_bytes = struct.unpack('!' + (self.RANDOM_BYTE_LENGTH * 'B'),
-                                              data[self.RANDOM_BYTE_OFFSET:self.RANDOM_BYTE_END])
-        random_bytes = bytearray()
-        for i in range(0, 28):
-            random_bytes.append(unpacked_random_bytes[i])
-        return random_bytes
-
-    def get_session_id_length(self, data):
-        unpacked_session_id_length = struct.unpack('!B', data[self.SESSION_ID_LENGTH_OFFSET:self.SESSION_ID_LENGTH_END])
-        self.SESSION_ID_LENGTH = unpacked_session_id_length[0]
-        self.update_offsets()
-        return self.SESSION_ID_LENGTH
-
-    def get_session_id(self, data):
-        if self.SESSION_ID_LENGTH == 0:
-            return None
-        else:
-            return struct.unpack('!I', data[self.SESSION_ID_LENGTH_OFFSET:self.SESSION_ID_END])[0]
-
-    def get_cipher_suites_length(self, data):
-        cipher_suites_length = struct.unpack('!H',
-                                             data[self.CIPHER_SUITES_LENGTH_OFFSET:self.CIPHER_SUITES_LENGTH_END])[0]
-
-        if (cipher_suites_length % 2) != 0:
-            cipher_suites_length = 0
-
-        self.CIPHER_SUITES_LENGTH = cipher_suites_length
-        self.update_offsets()
-
-        return cipher_suites_length
-
-    def get_availble_ciphers(self, data):
+    def get_availble_ciphers(self, data, offset, length):
 
         available_ciphers = []
+        unpacked_ciphers = struct.unpack('!' + 'H' * int(length['cipher_suites'] / 2),
+                                         data[
+                                         offset['cipher_suites']:offset['cipher_suites'] + length['cipher_suites']])
 
-        print(str(self.CIPHER_SUITES_LENGTH) + ' AND ' + str(self.CIPHER_SUITES_OFFSET) + ' END ' + str(
-            self.CIPHER_SUITES_END))
-
-        if self.CIPHER_SUITES_LENGTH != 0:
-            unpacked_ciphers = struct.unpack('!' + 'H' * int(self.CIPHER_SUITES_LENGTH / 2),
-                                             data[self.CIPHER_SUITES_OFFSET:self.CIPHER_SUITES_END])
-            for cipher in unpacked_ciphers:
-                available_ciphers.append(hex(cipher))
+        for cipher in unpacked_ciphers:
+            available_ciphers.append(hex(cipher))
 
         return available_ciphers
+
+    def get_extensions(self, data, offset, length):
+        extension_list = []
+
+        temp_offset = offset['extensions']
+        temp_length = length['extensions']
+        type_length = 2
+        length_length = 2
+
+        while temp_length > 0:
+            extension = []
+
+            extension_type = struct.unpack('!H', data[temp_offset:temp_offset + type_length])[0]
+            extension.append(extension_type)
+            temp_offset += type_length
+
+            extension_length = struct.unpack('!H', data[temp_offset:temp_offset + length_length])[0]
+            extension.append(extension_length)
+            temp_offset += length_length
+
+            if extension_length > 0:
+                extension_data = \
+                    struct.unpack('!' + (extension_length * 'B'), data[temp_offset:temp_offset + extension_length])[0]
+                temp_offset += extension_length
+                extension.append(extension_data)
+
+            extension_list.append(extension)
+
+            temp_length -= (type_length + length_length + extension_length)
+
+        return extension_list
 
     def get_parsed_record_layer_header(self, data):
         unpacked_header = struct.unpack('!BHH', data[self.HEADER_OFFSET:self.HEADER_LENGTH])
@@ -85,6 +81,7 @@ class Parser:
         }
 
         ssl_data = {}
+
         handshake_type = \
             struct.unpack('!B', data[offset['handshake_type']:offset['handshake_type'] + length['handshake_type']])[0]
         ssl_data['handshake_type'] = handshake_type
@@ -121,8 +118,6 @@ class Parser:
                               data[offset['session_id']:offset['session_id'] + length['session_id']])[0]
             ssl_data['session_id'] = session_id
 
-        print('ssl_data: ' + str(ssl_data))
-
         offset['cipher_suites_length'] = offset['session_id'] + length['session_id']
         length['cipher_suites'] = \
             struct.unpack('!H', data[offset['cipher_suites_length']:offset['cipher_suites_length'] + length[
@@ -137,19 +132,7 @@ class Parser:
 
         offset['cipher_suites'] = offset['cipher_suites_length'] + length['cipher_suites_length']
 
-        # TODO AUSLAGERN
-
-        available_ciphers = []
-        unpacked_ciphers = struct.unpack('!' + 'H' * int(length['cipher_suites'] / 2),
-                                         data[
-                                         offset['cipher_suites']:offset['cipher_suites'] + length['cipher_suites']])
-
-        for cipher in unpacked_ciphers:
-            available_ciphers.append(hex(cipher))
-
-        ssl_data['available_ciphers'] = available_ciphers
-
-        # TODO BIS HIER
+        ssl_data['available_ciphers'] = self.get_availble_ciphers(data, offset, length)
 
         offset['compression_method_length'] = offset['cipher_suites'] + length['cipher_suites']
         length['compression_method'] = \
@@ -168,6 +151,10 @@ class Parser:
 
         ssl_data['extensions_length'] = length['extensions']
 
-        # TODO AUSLAGERN 2 Byte type; 2 Byte length; length Byte Extensiondata
+        offset['extensions'] = offset['extensions_length'] + length['extensions_length']
+
+        # TODO EXTENSION_LIST umwandeln
+
+        ssl_data['extensions'] = self.get_extensions(data, offset, length)
 
         return ssl_data
