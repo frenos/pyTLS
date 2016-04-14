@@ -228,7 +228,7 @@ def gracefull_shutdown(sig, dummy):
 
 signal.signal(signal.SIGINT, gracefull_shutdown)
 
-server = Server('', 443)
+server = Server('', 1337)
 server.start_server()
 
 server.stop_server()

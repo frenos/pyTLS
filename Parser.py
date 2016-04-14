@@ -29,7 +29,7 @@ class Parser:
             extension = []
 
             extension_type = struct.unpack('!H', data[temp_offset:temp_offset + type_length])[0]
-            extension.append(extension_type)
+            extension.append(hex(extension_type))
             temp_offset += type_length
 
             extension_length = struct.unpack('!H', data[temp_offset:temp_offset + length_length])[0]
@@ -38,7 +38,7 @@ class Parser:
 
             if extension_length > 0:
                 extension_data = \
-                    struct.unpack('!' + (extension_length * 'B'), data[temp_offset:temp_offset + extension_length])[0]
+                    struct.unpack('!' + (extension_length * 'B'), data[temp_offset:temp_offset + extension_length])
                 temp_offset += extension_length
                 extension.append(extension_data)
 
